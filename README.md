@@ -1,2 +1,7 @@
-# sql2bq
-A command-line tool to load tables from CloudSQL to BigQuery
+### sql2bq
+
+A command line tool for loading MySQL tables to BigQuery.
+
+## Requirements
+
+
