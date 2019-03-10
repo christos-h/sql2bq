@@ -1,4 +1,5 @@
 import sys
+import json
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
             }
         )
 
-    print bq_columns
+    print json.dumps(bq_columns)
 
     exit(0)
 
@@ -40,7 +41,6 @@ def map_sql_type_to_bq(sql_type):
         "timestamp": "TIMESTAMP",
         # "year" : "String" Check what the output of a mysql dump looks like here
         # All the geometry sets
-
 
     }
 

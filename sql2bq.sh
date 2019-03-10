@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 
-# Checks
-
-# Permissions
-# sql_dump, bq_load, bq_create_table, vm_instance_create, vm_instance_delete
-
 if [[ "$#" -ne 1 ]]; then
 	echo "ERROR: Illegal number of arguments."
 	echo "Usage: sql2bq <schema.table>"
@@ -37,22 +32,35 @@ COLUMNS=$(echo "${COLUMNS}" | cut -d$'\t' --fields=1,2,3)
 # Remove brackets
 COLUMNS=$(echo "${COLUMNS}" | sed s/\(.*\)// )
 
-BQ_SCHEMA_JSON=$(python sql2bq.py "${COLUMNS}")
+# Temporary file for BigQuery schema
+TMP_BQ_SCHEMA_FILE=$(mktemp /tmp/sql2bq.XXXXX)
+
+python sql2bq.py "${COLUMNS}" > "${TMP_BQ_SCHEMA_FILE}" 
 
 gcloud sql export csv sql2bq "gs://sql2bq/${TABLE_NAME}.csv" --query="SELECT * FROM test_db_1.person"
 
+# Remove characters including and after . to get schema (or data-set name)
+DATA_SET_NAME=$(echo "${TABLE_NAME}" | sed "s/\..*//")
+
+bq show ${DATA_SET_NAME} > /dev/null
+
+if [[ "$?" -ne 0 ]]; then
+	echo "Dataset ${DATA_SET_NAME} does not exist. Creating dataset..."
+	bq mk "${DATA_SET_NAME}"
+fi
+
 # Check that table does not exist
-bq show $? > /dev/null
+bq show ${TABLE_NAME} > /dev/null
 
 if [[ "$?" -eq 0 ]]; then
-	echo "Dataset ${TABLE_NAME} already exists. Exiting..."
+	echo "Table ${TABLE_NAME} already exists. Exiting..."
 	exit 1;
 fi
 
-# Create table (Or Dataset? Not sure)
-# Check dataset exists?
-# bq mk <dataset.table> --schema=<path-to-schema-file>
+bq mk --schema="${TMP_BQ_SCHEMA_FILE}" "${TABLE_NAME}"|| exit 1;
 
+bq load --null_marker="\"N" --source_format="csv" "${TABLE_NAME}" "gs://sql2bq/${TABLE_NAME}.csv"
+
+# Clean up resources
 
 exit 0;
-
