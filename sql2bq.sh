@@ -2,7 +2,7 @@
 
 if [[ "$#" -ne 8 ]]; then
 	echo "ERROR: Illegal number of arguments."
-	echo "Usage: ./sql2bq.sh <schema.table> <sql-project-id> <sql-region> <sql-instance-name> <fully-qualified-table-name> <sql-username> <sql-password> <staging-bucket> <bq-project-id>"
+	echo "Usage: ./sql2bq.sh <sql-project-id> <sql-region> <sql-instance-name> <fully-qualified-table-name> <sql-username> <sql-password> <staging-bucket> <bq-project-id>"
 	exit 1;
 fi
 
