@@ -4,7 +4,7 @@ A command line tool for loading CloudSQL tables into BigQuery.
 
 * First a column definition is extracted for the desired table from CloudSQL.
 * A mapping then occurs between SQL data-types and BigQuery data-types. (The mapping is not 1:1. For more details see sql2bq.py)
-* Next the data for that table is exported to Google Cloud Storage at a specified staging bucket (the file name is of the form <fully-qualified-table-name>.csv)
+* Next the data for that table is exported to Google Cloud Storage at a specified staging bucket
 * Next a dataset is create in BigQuery with the name of the schema (If it does not already exist)
 * Next a table is created under that dataset in BigQuery with the name of the SQL table. If the table already exists the process will fail.
 * Finally the csv file is loaded from Google Cloud Storage to BigQuery. If the loading fails for any reason the table will remain empty.
