@@ -1,27 +1,42 @@
 #!/usr/bin/env bash
 
-if [[ "$#" -ne 1 ]]; then
+if [[ "$#" -ne 8 ]]; then
 	echo "ERROR: Illegal number of arguments."
-	echo "Usage: sql2bq <schema.table>"
+	echo "Usage: ./sql2bq.sh <schema.table> <sql-project-id> <sql-region> <sql-instance-name> <fully-qualified-table-name> <sql-username> <sql-password> <staging-bucket> <bq-project-id>"
 	exit 1;
 fi
 
-TABLE_NAME=$1
-MYSQL_USER=0
-MYSQL_PASSWORD=0
-PROJECT=0
-INSTANCE=0
-DATA_SET=0
-STAGING_BUCKET=0
+# ./sql2bq.sh tank-io-0 europe-west-1 sql2bq test_db_1.person root jEiFaflHlo16IJw4 gs://sql2bq/ tank-io-0
+function clean_and_exit () {
+    echo "$1"
+    pkill cloud_sql_proxy
+    # Delete BQ table
+    # Delete file in staging bucket
+    exit 1;
+}
 
-nohup ./cloud_sql_proxy --instances=tank-io-0:europe-west1:sql2bq=tcp:3306 &
+SQL_PROJECT=$1
+SQL_PROJECT_REGION=$2
+INSTANCE=$3
+TABLE_NAME=$4
+MYSQL_USER=$5
+MYSQL_PASSWORD=$6
+STAGING_BUCKET=$7
+BQ_PROJECT=$8
 
-sleep 3
+# Remove characters including and after . to get schema (or data-set name)
+SCHEMA_NAME=$(echo "${TABLE_NAME}" | sed "s/\..*//")
+
+
+nohup ./cloud_sql_proxy --instances="${SQL_PROJECT}":"${SQL_PROJECT_REGION}":"${INSTANCE}"=tcp:3306 &
+
+sleep 2
 
 QUERY="SHOW FIELDS FROM ${TABLE_NAME}"
 
 # Get columns from mysql
-COLUMNS=$(mysql -u root -pjEiFaflHlo16IJw4 --host 127.0.0.1 test_db_1 -e "${QUERY}" --batch --silent)
+COLUMNS=$(mysql -u "${MYSQL_USER}" -p"${MYSQL_PASSWORD}" --host 127.0.0.1 "${SCHEMA_NAME}" -e "${QUERY}" --batch --silent) \
+    || clean_and_exit "Could not get table definition for ${SCHEMA_NAME}. Exiting..."
 
 # SQL proxy no longer necessary
 pkill cloud_sql_proxy
@@ -35,32 +50,29 @@ COLUMNS=$(echo "${COLUMNS}" | sed s/\(.*\)// )
 # Temporary file for BigQuery schema
 TMP_BQ_SCHEMA_FILE=$(mktemp /tmp/sql2bq.XXXXX)
 
-python sql2bq.py "${COLUMNS}" > "${TMP_BQ_SCHEMA_FILE}" 
+python sql2bq.py "${COLUMNS}" > "${TMP_BQ_SCHEMA_FILE}" \
+    || clean_and_exit "Could not convert SQL table definition to BigQuery schema. Exiting..."
 
-gcloud sql export csv sql2bq "gs://sql2bq/${TABLE_NAME}.csv" --query="SELECT * FROM test_db_1.person"
+# Update IAM programmatically?
+gcloud sql export csv "${INSTANCE}" "${STAGING_BUCKET}${TABLE_NAME}.csv" --query="SELECT * FROM ${TABLE_NAME}" \
+    || clean_and_exit "Could not export table ${TABLE_NAME} to ${STAGING_BUCKET}. Exiting..."
 
-# Remove characters including and after . to get schema (or data-set name)
-DATA_SET_NAME=$(echo "${TABLE_NAME}" | sed "s/\..*//")
-
-bq show ${DATA_SET_NAME} > /dev/null
+bq show --project_id="${BQ_PROJECT}" "${SCHEMA_NAME}" > /dev/null
 
 if [[ "$?" -ne 0 ]]; then
-	echo "Dataset ${DATA_SET_NAME} does not exist. Creating dataset..."
-	bq mk "${DATA_SET_NAME}"
+	echo "Data set ${SCHEMA_NAME} does not exist. Creating data set..."
+	bq mk --project_id="${BQ_PROJECT}" "${SCHEMA_NAME}"
 fi
 
 # Check that table does not exist
-bq show ${TABLE_NAME} > /dev/null
+bq show --project_id="${BQ_PROJECT}" "${TABLE_NAME}" > /dev/null \
+    && clean_and_exit "Table ${TABLE_NAME} already exists. Exiting..."
 
-if [[ "$?" -eq 0 ]]; then
-	echo "Table ${TABLE_NAME} already exists. Exiting..."
-	exit 1;
-fi
+bq mk --project_id="${BQ_PROJECT}" --schema="${TMP_BQ_SCHEMA_FILE}" "${TABLE_NAME}" \
+    || clean_and_exit "Could not create table ${TABLE_NAME} in BigQuery. Exiting..."
 
-bq mk --schema="${TMP_BQ_SCHEMA_FILE}" "${TABLE_NAME}"|| exit 1;
+bq load --project_id="${BQ_PROJECT}" --null_marker="\"N" --source_format=CSV "${TABLE_NAME}" "${STAGING_BUCKET}${TABLE_NAME}.csv" \
+    || clean_and_exit "Could not load export from ${STAGING_BUCKET}${TABLE_NAME} to BigQuery ${TABLE_NAME}. Exiting..."
 
-bq load --null_marker="\"N" --source_format="csv" "${TABLE_NAME}" "gs://sql2bq/${TABLE_NAME}.csv"
-
-# Clean up resources
 
 exit 0;
