@@ -6,7 +6,6 @@ if [[ "$#" -ne 8 ]]; then
 	exit 1;
 fi
 
-# ./sql2bq.sh tank-io-0 europe-west-1 sql2bq test_db_1.person root jEiFaflHlo16IJw4 gs://sql2bq/ tank-io-0
 function clean_and_exit () {
     echo "$1"
     pkill cloud_sql_proxy
