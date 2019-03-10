@@ -7,6 +7,12 @@ Usage:
 ./sql2bq.sh <schema.table> <sql-project-id> <sql-region> <sql-instance-name> <fully-qualified-table-name> <sql-username> <sql-password> <staging-bucket> <bq-project-id>
 ```
 
+### Disclaimer
+
+This software has not been rigorously tested and should not be used in production without prior analysis. 
+For example, if there is a file collision in the staging bucket, the existing file will be overwritten. 
+Measures have been taken to make sure obvious accidents are avoided (if a BigQuery table of the same name exists loading will fail).
+
 ### TODO
 
 * Nulls not supported yet: When a CloudSQL dump occurs, the null character is: **"N**. 
