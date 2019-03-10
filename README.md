@@ -32,4 +32,5 @@ Longer term a VM can be spun up, the connection should be faster that way as thi
 * Named arguments: The script caller currently has to remember the order of 8 arguments. Ideally there should be named arguments.
 * Portability: Initially, the entire thing was going to be a bash script. But mapping the SQL table definition to BQ and then JSON was just quicker in Python. Maybe the entire thing should be moved to Python.
 * SQL/BQ type mapping: This is incomplete so far (see sql2bq.py). Furthermore it is unclear what the right thing to do is with a lot of columns types.
-* Diff loading: Currently only full-table loads are supported. It would be useful to be able to load diffs so that you can synchronize between CloudSQL and BigQuery using a scheduler. 
+* Diff loading: Currently only full-table loads are supported. It would be useful to be able to load diffs so that you can synchronize between CloudSQL and BigQuery using a scheduler.
+* Schema extraction: It should be possible to define entire schemas for extraction instead of just tables. 
