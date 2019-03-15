@@ -22,15 +22,12 @@ Measures have been taken to make sure obvious accidents are avoided (if a BigQue
 
 ### TODO
 
-* Nulls not supported yet: When a CloudSQL dump occurs, the null character is: **"N**. 
-For obvious reasons this is problematic with CSV dumps. 
-The plan here is to pull the exported file locally, pass a (well tested) sed over it and re-upload the modified file to the staging bucket.
-Longer term a VM can be spun up, the connection should be faster that way as this process can be extremely painful if you have a slow internet connection. 
 * So far only MySQL 5.7 is supported. There is no support for PostgreSQL yet.
 * Permissions checks: The assumption here is that the GCP account which this is run with has all required permissions. There are no explicit checks.
-* Cleanup: Temporary files both locally and on the cloud are not cleaned up. 
+* Cleanup: Temporary files on the cloud are not cleaned up. This is intentional but there should be an option to do so. 
 * Named arguments: The script caller currently has to remember the order of 8 arguments. Ideally there should be named arguments.
 * Portability: Initially, the entire thing was going to be a bash script. But mapping the SQL table definition to BQ and then JSON was just quicker in Python. Maybe the entire thing should be moved to Python.
 * SQL/BQ type mapping: This is incomplete so far (see sql2bq.py). Furthermore it is unclear what the right thing to do is with a lot of columns types.
 * Diff loading: Currently only full-table loads are supported. It would be useful to be able to load diffs so that you can synchronize between CloudSQL and BigQuery using a scheduler.
 * Schema extraction: It should be possible to define entire schemas for extraction instead of just tables.
+* Currently files are copied locally in order to run some null replacement operations over them. There should be an option to spin up a VM for that. Also it may be possible to remove the need for sed if the null marker is set correctly in BQ load.

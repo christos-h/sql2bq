@@ -17,7 +17,7 @@ BQ_PROJECT=$8
 
 function clean_and_exit () {
     echo "$1"
-    # Use trap for cloud-sql-rpoxu
+    # Use trap for cloud-sql-proxy
     pkill cloud_sql_proxy
     rm "${TABLE_NAME}.csv" 2> /dev/null
     rm "${TABLE_NAME}_no_nulls.csv" 2> /dev/null
@@ -40,11 +40,11 @@ nohup ./cloud_sql_proxy --instances="${SQL_PROJECT}":"${SQL_PROJECT_REGION}":"${
 sleep 2
 
 
-QUERY="SHOW FIELDS FROM ${TABLE_NAME}"
+SHOW_FIELDS_QUERY="SHOW FIELDS FROM ${TABLE_NAME}"
 
 
 # Get columns from mysql
-COLUMNS=$(mysql -u "${MYSQL_USER}" -p"${MYSQL_PASSWORD}" --host 127.0.0.1 "${SCHEMA_NAME}" --port=3308 -e "${QUERY}" --batch --silent) \
+COLUMNS=$(mysql -u "${MYSQL_USER}" -p"${MYSQL_PASSWORD}" --host 127.0.0.1 "${SCHEMA_NAME}" --port=3308 -e "${SHOW_FIELDS_QUERY}" --batch --silent) \
     || clean_and_exit "Could not get table definition for ${SCHEMA_NAME}. Exiting..."
 
 
@@ -64,12 +64,21 @@ COLUMNS=$(echo "${COLUMNS}" | sed s/\(.*\)// )
 TMP_BQ_SCHEMA_FILE=$(mktemp /tmp/sql2bq.XXXXX)
 
 # Convert SQL table definition to BigQuery schema
-python sql2bq.py "${COLUMNS}" > "${TMP_BQ_SCHEMA_FILE}" \
+python map_columns.py "${COLUMNS}" > "${TMP_BQ_SCHEMA_FILE}" \
     || clean_and_exit "Could not convert SQL table definition for ${TABLE_NAME} to BigQuery schema. Exiting..."
 
+TMP_SELECT_QUERY_FILE=$(mktemp /tmp/sql2bq.XXXXX)
+
+ENTROPY_STRING="VooDcTOTy0U83S"
+
+# Build a query to handle nulls
+python build_query.py "${COLUMNS}" "${TABLE_NAME}" "${ENTROPY_STRING}" > "${TMP_SELECT_QUERY_FILE}" \
+    || clean_and_exit "Could not create select statement for ${TABLE_NAME}. Exiting..."
+
+SELECT_QUERY=$(cat "${TMP_SELECT_QUERY_FILE}")
 
 # Update IAM programmatically?
-gcloud sql export csv "${INSTANCE}" "${STAGING_BUCKET}${TABLE_NAME}.csv" --query="SELECT * FROM ${TABLE_NAME}" --project="${SQL_PROJECT}" \
+gcloud sql export csv "${INSTANCE}" "${STAGING_BUCKET}${TABLE_NAME}.csv" --query="${SELECT_QUERY}" --project="${SQL_PROJECT}" \
     || clean_and_exit "Could not export table ${TABLE_NAME} to ${STAGING_BUCKET}. Exiting..."
 
 
@@ -97,8 +106,8 @@ gsutil cp "${STAGING_BUCKET}${TABLE_NAME}.csv" . \
 
 
 # Remove null values from export
-cat "${TABLE_NAME}.csv" | sed s/\"\N\,/\,/g | sed s/\"\N$//g > "${TABLE_NAME}_no_nulls.csv"
-
+#cat "${TABLE_NAME}.csv" | sed s/\"\N\,/\,/g | sed s/\"\N$//g > "${TABLE_NAME}_no_nulls.csv"
+cat "${TABLE_NAME}.csv" | sed s/VooDcTOTy0U83S//g > "${TABLE_NAME}_no_nulls.csv"
 
 # Copy back to the bucket
 gsutil -q cp "${TABLE_NAME}_no_nulls.csv" "${STAGING_BUCKET}${TABLE_NAME}_no_nulls.csv" \
